@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path=""/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="lib" path="c:/SQX_143_win_20260115/internal/libs/slf4j-api.jar"/>
+	<classpathentry kind="lib" path="c:/SQX_143_win_20260115/internal/libs/logback-classic.jar"/>
+	<classpathentry kind="lib" path="c:/SQX_143_win_20260115/internal/libs/logback-core.jar"/>
+	<classpathentry kind="lib" path="c:/SQX_143_win_20260115/internal/libs/json.jar"/>
+	<classpathentry kind="lib" path="c:/SQX_143_win_20260115/internal/libs/SQPluginLib.jar"/>
+	<classpathentry kind="lib" path="c:/SQX_143_win_20260115/internal/libs/SQTradingLib.jar"/>
+	<classpathentry kind="lib" path="c:/SQX_143_win_20260115/internal/libs/SQWebGUILib.jar"/>
+	<classpathentry kind="lib" path="c:/SQX_143_win_20260115/internal/libs/SQDataLib.jar"/>
+	<classpathentry kind="lib" path="c:/SQX_143_win_20260115/internal/libs/jetty-all-uber.jar"/>
+	<classpathentry kind="lib" path="c:/SQX_143_win_20260115/internal/libs/jspf.core.jar"/>
+	<classpathentry kind="lib" path="c:/SQX_143_win_20260115/internal/libs/jspf.remote.jar"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>
