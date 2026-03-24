@@ -4,13 +4,13 @@ A [StrategyQuant X](https://strategyquant.com) plugin that adds a single-click *
 
 Renames selected strategies using the format:
 
-```text
+```
 TradingStyle_Ticker_Timeframe_001
 ```
 
 For example: `Breakout_SP500_H4_001`, `Breakout_SP500_H4_002`, `Momentum_EURUSD_H1_001`
 
-- Ticker and timeframe are read automatically from each strategy's backtest data
+- Ticker and timeframe are extracted automatically from each strategy's backtest data
 - Numbers are sequential and never duplicate existing names in the databank
 - Mixed batches (multiple symbols/timeframes) each get their own counter
 
@@ -18,31 +18,33 @@ For example: `Breakout_SP500_H4_001`, `Breakout_SP500_H4_002`, `Momentum_EURUSD_
 
 ## Installation
 
-Copy the contents of this repo into:
+### Option A — Import .sxp (recommended)
 
-```text
-<SQX_install>/user/extend/Plugins/AutoRename/
+1. Download `AutoRename.sxp` from this repo
+2. In SQX go to **Code Editor → Plugins → Import** and select the file
+3. Restart SQX
+
+### Option B — Copy source files manually
+
+Download this repo and copy the `user` folder directly into your SQX installation directory:
+
+```
+<SQX_install>/
+  user/
+    extend/
+      Plugins/
+        AutoRename/
+          AutoRenamePlugin.java
+          AutoRenameServlet.java
+          ui/
+            module.js
 ```
 
-So you have:
-
-```text
-user/extend/Plugins/AutoRename/
-  AutoRenamePlugin.java
-  AutoRenameServlet.java
-  ui/
-    module.js
-```
-
-That's it — no other folders need to be touched.
-
-### Compile & restart
+Then compile:
 
 1. Open StrategyQuant X
 2. Go to **Code Editor → Plugins**, select `AutoRename`, and click **Compile**
 3. Restart SQX
-
-The **Auto Rename** button will appear in the databank toolbar to the right of the Tools menu.
 
 ---
 

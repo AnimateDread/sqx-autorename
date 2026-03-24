@@ -1,0 +1,9 @@
+# IDE / project files
+.classpath
+.project
+.vscode/
+.idea/
+
+# Compiled output
+*.jar
+*.class
