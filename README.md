@@ -22,7 +22,7 @@ For example: `Breakout_SP500_H4_001`, `Breakout_SP500_H4_002`, `Momentum_EURUSD_
 
 1. Download `AutoRename.sxp` from this repo
 2. In SQX go to **Code Editor → Plugins → Import** and select the file
-3. Restart SQX
+3. Click "Yes" after compilation when SQX asks to reload the UI, or restart SQX
 
 ### Option B — Copy folder manually
 
