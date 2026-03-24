@@ -24,27 +24,10 @@ For example: `Breakout_SP500_H4_001`, `Breakout_SP500_H4_002`, `Momentum_EURUSD_
 2. In SQX go to **Code Editor → Plugins → Import** and select the file
 3. Restart SQX
 
-### Option B — Copy source files manually
+### Option B — Copy folder manually
 
-Download this repo and copy the `user` folder directly into your SQX installation directory:
-
-```
-<SQX_install>/
-  user/
-    extend/
-      Plugins/
-        AutoRename/
-          AutoRenamePlugin.java
-          AutoRenameServlet.java
-          ui/
-            module.js
-```
-
-Then compile:
-
-1. Open StrategyQuant X
-2. Go to **Code Editor → Plugins**, select `AutoRename`, and click **Compile**
-3. Restart SQX
+1. Download this repo and copy the `user` folder into your SQX installation directory so it merges with the existing `user` folder
+2. Either restart SQX, or go to **Code Editor → Plugins** and click **Compile All**
 
 ---
 
