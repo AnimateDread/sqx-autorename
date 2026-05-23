@@ -36,8 +36,7 @@ For example: `Breakout_SP500_H4_001`, `Breakout_SP500_H4_002`, `Momentum_EURUSD_
 1. Select one or more strategies in any databank
 2. Click **Auto Rename**
 3. Enter a Trading Style (e.g. `Breakout`, `Momentum`, `Counter_Trend`)
-4. The preview shows the exact names that will be assigned
-5. Click **Rename**
+4. Click **Rename**
 
 ---
 

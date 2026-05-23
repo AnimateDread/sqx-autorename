@@ -32,6 +32,9 @@ public class AutoRenamePlugin implements ISQPlugin, IServletPlugin {
     @Override
     public Handler getHandler() {
         if (context == null) {
+            if (servlet == null) {
+                servlet = new AutoRenameServlet();
+            }
             context = new ServletContextHandler(ServletContextHandler.SESSIONS);
             context.setContextPath("/autorename/");
             context.addServlet(new ServletHolder(servlet), "/*");

@@ -1,7 +1,11 @@
 package com.strategyquant.userplugins.autorename;
 
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.json.JSONObject;
 import org.slf4j.Logger;
@@ -17,12 +21,12 @@ import com.strategyquant.webguilib.servlet.HttpJSONServlet;
 class AutoRenameServlet extends HttpJSONServlet {
 
     private static final Logger Log = LoggerFactory.getLogger(AutoRenameServlet.class);
+    private static final Pattern NAME_TF_PATTERN = Pattern.compile("(.+?)[_/ -]([MHDW]\\d+)$", Pattern.CASE_INSENSITIVE);
 
     @Override
     protected String execute(String command, Map<String, String[]> parameterMap, String method) throws Exception {
         switch (command) {
             case "rename":  return onRename(parameterMap);
-            case "preview": return onPreview(parameterMap);
             default:
                 throw new Exception("Unknown command '" + command + "'.");
         }
@@ -55,6 +59,14 @@ class AutoRenameServlet extends HttpJSONServlet {
         Databank  databank = getDatabank(project, databankName);
         String[]  stgs     = resolveStrategies(strategies, databank);
 
+        if (stgs.length == 0) {
+            JSONObject response = new JSONObject();
+            response.put("success", "ok");
+            response.put("renamed", 0);
+            response.put("skipped", 0);
+            return response.toString();
+        }
+
         // Track the "next number" per prefix across this batch
         // so that two strategies with the same ticker+TF get consecutive numbers.
         Map<String, Integer> nextNumCache = new HashMap<>();
@@ -65,6 +77,9 @@ class AutoRenameServlet extends HttpJSONServlet {
         project.publisher.resetLastData(ProjectChannels.PROGRESS_CHANNEL);
         project.getProgress().update(actionName, 0, null);
 
+        int renamed = 0;
+        int skipped = 0;
+
         for (int i = 0; i < stgs.length; i++) {
             String strategyName = stgs[i].trim();
             ResultsGroup rg = null;
@@ -73,7 +88,7 @@ class AutoRenameServlet extends HttpJSONServlet {
                 rg = databank.getLocked(strategyName, lockName);
                 ResultsGroup newRg = rg.clone();
 
-                String resultKey = extractTickerTF(rg.getMainResultKey()); // e.g. "SP500_H4"
+                String resultKey = extractTickerTF(rg.getMainResultKey(), rg.getName()); // e.g. "SP500_H4"
                 String prefix    = style + "_" + resultKey;                  // e.g. "Breakout_SP500_H4"
 
                 // First time we see this prefix: scan databank for the highest used number
@@ -88,9 +103,11 @@ class AutoRenameServlet extends HttpJSONServlet {
 
                 databank.remove(strategyName, true, true, false, true, lockName);
                 databank.add(newRg, true);
+                renamed++;
 
             } catch (Exception e) {
                 Log.error("Error while renaming strategy '" + strategyName + "'", e);
+                skipped++;
             } finally {
                 if (rg != null) rg.releaseLock(lockName);
 
@@ -103,42 +120,9 @@ class AutoRenameServlet extends HttpJSONServlet {
 
         JSONObject response = new JSONObject();
         response.put("success", "ok");
+        response.put("renamed", renamed);
+        response.put("skipped", skipped);
         return response.toString();
-    }
-
-    // -------------------------------------------------------------------------
-    // /autorename/preview
-    //
-    // Returns the computed prefix and first name for the first selected strategy.
-    // Used by the popup to show a live preview as the user types the style.
-    // -------------------------------------------------------------------------
-
-    private String onPreview(Map<String, String[]> args) throws Exception {
-        checkParamExists(args, new String[]{"projectName", "databankName", "firstStrategy", "style"});
-
-        String projectName   = tryGetParamValue(args, "projectName");
-        String databankName  = tryGetParamValue(args, "databankName");
-        String firstStrategy = tryGetParamValue(args, "firstStrategy").trim();
-        String style         = sanitize(tryGetParamValue(args, "style"));
-
-        SQProject project  = getProject(projectName);
-        Databank  databank = getDatabank(project, databankName);
-
-        ResultsGroup rg = databank.getLocked(firstStrategy, "AutoRenamePreview");
-        try {
-            String resultKey = extractTickerTF(rg.getMainResultKey());
-            String prefix    = style + "_" + resultKey;
-            int    next      = findNextNumber(databank, prefix);
-
-            JSONObject response = new JSONObject();
-            response.put("prefix",    prefix);
-            response.put("nextNumber", next);
-            response.put("example",   buildName(prefix, next));
-            return response.toString();
-
-        } finally {
-            rg.releaseLock("AutoRenamePreview");
-        }
     }
 
     // -------------------------------------------------------------------------
@@ -160,11 +144,35 @@ class AutoRenameServlet extends HttpJSONServlet {
     }
 
     private String[] resolveStrategies(String strategies, Databank databank) {
-        String[] stgs = strategies.split(",");
-        if (stgs.length == 1 && stgs[0].trim().equals("all")) {
-            stgs = databank.getRecordKeys().toArray(new String[0]);
+        if (strategies == null) return new String[0];
+
+        String raw = strategies.trim();
+        if (raw.isEmpty()) return new String[0];
+        if ("all".equalsIgnoreCase(raw)) {
+            return databank.getRecordKeys().toArray(new String[0]);
         }
-        return stgs;
+
+        Set<String> resolved = new LinkedHashSet<>();
+
+        if (raw.startsWith("[") && raw.endsWith("]")) {
+            try {
+                org.json.JSONArray arr = new org.json.JSONArray(raw);
+                for (int i = 0; i < arr.length(); i++) {
+                    String key = String.valueOf(arr.opt(i)).trim();
+                    if (!key.isEmpty()) resolved.add(key);
+                }
+                return resolved.toArray(new String[0]);
+            } catch (Exception ignored) {
+                // Fall back to legacy CSV parsing.
+            }
+        }
+
+        String[] stgs = raw.split(",");
+        for (String stg : stgs) {
+            String key = stg.trim();
+            if (!key.isEmpty()) resolved.add(key);
+        }
+        return resolved.toArray(new String[0]);
     }
 
     /**
@@ -179,8 +187,12 @@ class AutoRenameServlet extends HttpJSONServlet {
      *   2. Split on "/" → left = ticker_datafeed_broker, right = timeframe
      *   3. Keep only the first "_"-delimited segment of the ticker (drops datafeed/broker)
      */
-    private String extractTickerTF(String mainResultKey) {
-        String key = mainResultKey.trim();
+    private String extractTickerTF(String mainResultKey, String strategyName) {
+        String key = mainResultKey != null ? mainResultKey.trim() : "";
+
+        if (key.isEmpty()) {
+            return inferTickerTFFromName(strategyName);
+        }
 
         // Strip "Word: " prefix if present
         int colonIdx = key.indexOf(": ");
@@ -188,7 +200,10 @@ class AutoRenameServlet extends HttpJSONServlet {
 
         // Split on "/" to separate ticker_datafeed_broker from timeframe
         int slashIdx = key.indexOf('/');
-        if (slashIdx < 0) return key;  // no slash — return as-is (e.g. "EURUSD_H1")
+        if (slashIdx < 0) {
+            String normalized = normalizeTickerTF(key);
+            return normalized != null ? normalized : inferTickerTFFromName(strategyName);
+        }
 
         String tickerFull = key.substring(0, slashIdx);   // "SP500_dukascopy_the5ers"
         String tf         = key.substring(slashIdx + 1);  // "H4"
@@ -197,7 +212,35 @@ class AutoRenameServlet extends HttpJSONServlet {
         int underIdx = tickerFull.indexOf('_');
         String ticker = underIdx >= 0 ? tickerFull.substring(0, underIdx) : tickerFull;
 
-        return ticker + "_" + tf;  // "SP500_H4"
+        String normalized = normalizeTickerTF(ticker + "_" + tf);
+        return normalized != null ? normalized : inferTickerTFFromName(strategyName);
+    }
+
+    private String inferTickerTFFromName(String strategyName) {
+        String fallback = strategyName == null ? "UNKNOWN_H1" : strategyName.trim();
+        if (fallback.isEmpty()) return "UNKNOWN_H1";
+
+        Matcher m = NAME_TF_PATTERN.matcher(fallback);
+        if (!m.find()) return "UNKNOWN_H1";
+
+        String ticker = m.group(1).replaceAll("[^A-Za-z0-9]+", "").toUpperCase();
+        String tf = m.group(2).toUpperCase();
+        if (ticker.isEmpty()) ticker = "UNKNOWN";
+        return ticker + "_" + tf;
+    }
+
+    private String normalizeTickerTF(String key) {
+        String cleaned = key == null ? "" : key.trim();
+        if (cleaned.isEmpty()) return null;
+
+        String[] parts = cleaned.split("_");
+        if (parts.length < 2) return null;
+
+        String tf = parts[parts.length - 1].replaceAll("[^A-Za-z0-9]", "").toUpperCase();
+        String ticker = parts[0].replaceAll("[^A-Za-z0-9]", "").toUpperCase();
+
+        if (ticker.isEmpty() || tf.isEmpty()) return null;
+        return ticker + "_" + tf;
     }
 
     /**
@@ -228,6 +271,10 @@ class AutoRenameServlet extends HttpJSONServlet {
      * trims whitespace, replaces spaces with underscores, strips unsafe characters.
      */
     private String sanitize(String s) {
-        return s.trim().replaceAll("\\s+", "_").replaceAll("[^A-Za-z0-9_\\-]", "");
+        String clean = s == null ? "" : s.trim().replaceAll("\\s+", "_").replaceAll("[^A-Za-z0-9_\\-]", "");
+        if (clean.isEmpty()) {
+            return "Style";
+        }
+        return clean;
     }
 }

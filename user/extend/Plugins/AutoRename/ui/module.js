@@ -36,17 +36,6 @@ angular.module('app.resultsdatabankactions.autorename', ['sqplugin'])
 // ── Styles + Template ─────────────────────────────────────────────────────────
 .run(function($templateCache) {
 
-    // Inject styles directly so no external CSS file is needed
-    var style = document.createElement('style');
-    style.textContent =
-        '#autoRenamePopup .modal-dialog { width: 440px; }' +
-        '#autoRenamePopup .ar-preview { margin-top: 16px; padding: 10px 12px; background: #f5f5f5; border-radius: 4px; font-size: 13px; }' +
-        '#autoRenamePopup .ar-preview-label { font-weight: bold; color: #555; margin-bottom: 4px; }' +
-        '#autoRenamePopup .ar-preview-names strong { color: #337ab7; }' +
-        '#autoRenamePopup .ar-hint { margin-top: 6px; color: #888; font-size: 11px; }' +
-        '#autoRenamePopup .ar-preview-empty { color: #aaa; font-style: italic; }';
-    document.head.appendChild(style);
-
     // Embed popup HTML directly so no external HTML file or internal/plugins/ path is needed
     $templateCache.put('autorename-popup',
         '<div class="modal" id="autoRenamePopup" tabindex="-1" role="dialog" aria-labelledby="autoRenameModalLabel">' +
@@ -60,14 +49,8 @@ angular.module('app.resultsdatabankactions.autorename', ['sqplugin'])
         '        <form class="form-horizontal" role="form">' +
         '          <label class="sqn-label">' +
         '            <tsq>Trading Style</tsq>' +
-        '            <input type="text" class="sqn-input" ng-model="config.style" placeholder="e.g. Breakout" ng-change="onStyleChange()" />' +
+        '            <input type="text" class="sqn-input" ng-model="config.style" placeholder="e.g. Breakout" />' +
         '          </label>' +
-        '          <div class="ar-preview" ng-if="preview.example">' +
-        '            <div class="ar-preview-label"><tsq>Preview</tsq></div>' +
-        '            <div class="ar-preview-names"><strong>{{preview.example}}</strong>, <strong>{{preview.example2}}</strong>, ...</div>' +
-        '            <div class="ar-hint"><tsq>Ticker and timeframe are read from each strategy.</tsq> <tsq>Numbers continue from the highest existing name.</tsq></div>' +
-        '          </div>' +
-        '          <div class="ar-preview ar-preview-empty" ng-if="!preview.example && config.style"><tsq>Loading preview...</tsq></div>' +
         '        </form>' +
         '      </div>' +
         '      <div class="modal-footer">' +
@@ -82,43 +65,7 @@ angular.module('app.resultsdatabankactions.autorename', ['sqplugin'])
 
 // ── Popup controller ──────────────────────────────────────────────────────────
 .controller('AutoRenamePopupCtrl',
-    function ($scope, $rootScope, $timeout, SQEvents, L, DatabankActionsService, BackendService, AppService) {
-
-    var previewTimer = null;
-
-    $scope.onStyleChange = function() {
-        $scope.preview = {};
-
-        if (!$scope.config.style || !$scope.config.style.trim()) return;
-
-        if (previewTimer) $timeout.cancel(previewTimer);
-
-        previewTimer = $timeout(function() {
-            var strategies = $scope.config.strategies
-                ? $scope.config.strategies.split(',')
-                : [];
-
-            if (strategies.length === 0) return;
-
-            var params = {
-                projectName:   $scope.config.projectName,
-                databankName:  $scope.config.databankName,
-                firstStrategy: strategies[0].trim(),
-                style:         $scope.config.style.trim()
-            };
-
-            BackendService.sendRequest('/autorename/preview', params, function(result) {
-                if (result && result.example) {
-                    $scope.preview = result;
-
-                    var n = parseInt(result.nextNumber) + 1;
-                    $scope.preview.example2 = result.prefix + '_' + pad(n, 3);
-
-                    try { $scope.$digest(); } catch (e) {}
-                }
-            }, 'POST');
-        }, 350);
-    };
+    function ($scope, $rootScope, SQEvents, DatabankActionsService, BackendService, AppService) {
 
     $scope.onRename = function() {
         if (!$scope.config.style || !$scope.config.style.trim()) return;
@@ -142,14 +89,15 @@ angular.module('app.resultsdatabankactions.autorename', ['sqplugin'])
             if (!isPopupOpen('#autoRenamePopup')) {
                 $scope.config.projectName  = AppService.getProject();
                 $scope.config.databankName = AppService.getDatabank().title;
-                $scope.config.strategies   = DatabankActionsService.selectedStrategies;
+                $scope.config.strategiesRaw = DatabankActionsService.selectedStrategies;
+
+                var selectedKeys = parseStrategyKeys($scope.config.strategiesRaw);
+                $scope.config.strategies = selectedKeys.length
+                    ? JSON.stringify(selectedKeys)
+                    : 'all';
                 $scope.config.style        = '';
 
-                $scope.count = $scope.config.strategies
-                    ? $scope.config.strategies.split(',').length
-                    : 0;
-
-                $scope.preview = {};
+                $scope.count = selectedKeys.length;
 
                 try { $scope.$digest(); } catch (e) {}
                 showPopup('#autoRenamePopup');
@@ -157,19 +105,44 @@ angular.module('app.resultsdatabankactions.autorename', ['sqplugin'])
         }
     }
 
-    function pad(n, digits) {
-        var s = String(n);
-        while (s.length < digits) s = '0' + s;
-        return s;
+    function parseStrategyKeys(rawSelection) {
+        if (angular.isArray(rawSelection)) {
+            return rawSelection.filter(function(item) {
+                return !!item && String(item).trim().length > 0;
+            }).map(function(item) {
+                return String(item).trim();
+            });
+        }
+
+        if (typeof rawSelection === 'string') {
+            try {
+                var arr = JSON.parse(rawSelection);
+                if (angular.isArray(arr)) {
+                    return arr.filter(function(item) {
+                        return !!item && String(item).trim().length > 0;
+                    }).map(function(item) {
+                        return String(item).trim();
+                    });
+                }
+            } catch (e) {}
+
+            if (rawSelection.trim()) {
+                return rawSelection.split(',').map(function(item) {
+                    return item.trim();
+                }).filter(function(item) {
+                    return item.length > 0;
+                });
+            }
+        }
+
+        return [];
     }
 
     $scope.$on('$destroy', function() {
         SQEvents.removeListener(listenerId);
-        if (previewTimer) $timeout.cancel(previewTimer);
     });
 
-    $scope.config  = { projectName: null, databankName: null, strategies: null, style: '' };
-    $scope.preview = {};
+    $scope.config  = { projectName: null, databankName: null, strategiesRaw: null, strategies: null, style: '' };
     $scope.count   = 0;
 
     var listenerId = 'AutoRenamePopupCtrl-' + window.appConfig.product;
